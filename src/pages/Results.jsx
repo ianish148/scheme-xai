@@ -7,6 +7,9 @@ import {
 import html2pdf from 'html2pdf.js';
 import { evaluate } from '../engine';
 import { INTERNSHIPS } from './Internships';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 const validStatesList = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh',
@@ -265,7 +268,7 @@ export default function Results() {
     const age  = parseInt(p.age, 10);
     const inc  = parseInt(p.income, 10);
     if (isNaN(age) || age < 5 || age > 100) return 'Age must be between 5 and 100.';
-    if (isNaN(inc) || inc <= 0 || inc > 50000000) return 'Income must be a valid positive number under ₹5 Crore.';
+    if (isNaN(inc) || inc <= 0 || inc > 600000) return 'Income must be a valid positive number under ₹6 Lakh.';
     const bound = educationAgeBounds[p.education];
     if (bound && (age < bound.min || age > bound.max))
       return `Cross-field error: ${bound.label} students must be between ${bound.min} and ${bound.max} years old.`;
@@ -311,14 +314,43 @@ export default function Results() {
 
     el.classList.add('print-mode');
     try {
-      await html2pdf().set({
-        margin:      [10, 10, 10, 10],
-        filename:    'XAI_Scheme_Report.pdf',
-        image:       { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, windowWidth: 1100, scrollY: 0 },
-        jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak:   { mode: ['avoid-all', 'css', 'legacy'] },
-      }).from(el).save();
+      if (Capacitor.isNativePlatform()) {
+        const pdfBase64 = await html2pdf().set({
+          margin:      [10, 10, 10, 10],
+          image:       { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, windowWidth: 1100, scrollY: 0 },
+          jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak:   { mode: ['avoid-all', 'css', 'legacy'] },
+        }).from(el).outputPdf('datauristring');
+        
+        const base64Data = pdfBase64.split(',')[1];
+        
+        const result = await Filesystem.writeFile({
+          path: 'XAI_Scheme_Report.pdf',
+          data: base64Data,
+          directory: Directory.Cache
+        });
+        
+        await Share.share({
+          title: 'XAI Scheme Report',
+          url: result.uri,
+          dialogTitle: 'Save or Share your report'
+        });
+      } else {
+        await html2pdf().set({
+          margin:      [10, 10, 10, 10],
+          filename:    'XAI_Scheme_Report.pdf',
+          image:       { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, windowWidth: 1100, scrollY: 0 },
+          jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak:   { mode: ['avoid-all', 'css', 'legacy'] },
+        }).from(el).save();
+      }
+    } catch (err) {
+      console.error("PDF Export failed:", err);
+      if (Capacitor.isNativePlatform()) {
+        alert("Failed to export PDF. Please try again.");
+      }
     } finally {
       el.classList.remove('print-mode');
       setIsExporting(false);

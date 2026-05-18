@@ -9,22 +9,13 @@ export default function Contact() {
         Have questions about our expert system or need help with recommendations? We'd love to hear from you.
       </p>
 
-      <div style={{ display: 'grid', gap: '2rem', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
-        
+      <div style={{ maxWidth: '400px', margin: '0 auto' }}>
         <div className="card" style={{ padding: '2.5rem', textAlign: 'center' }}>
           <Mail size={32} color="var(--primary-color)" style={{ margin: '0 auto 1rem' }} />
           <h3 style={{ marginBottom: '0.5rem' }}>Email Us</h3>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>For general inquiries and support.</p>
           <a href="mailto:anishr2024@gmail.com" style={{ color: 'var(--primary-color)', fontWeight: 600 }}>anishr2024@gmail.com</a>
         </div>
-
-        <div className="card" style={{ padding: '2.5rem', textAlign: 'center' }}>
-          <MapPin size={32} color="var(--primary-color)" style={{ margin: '0 auto 1rem' }} />
-          <h3 style={{ marginBottom: '0.5rem' }}>Visit Us</h3>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>Headquarters</p>
-          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>New Delhi, India</span>
-        </div>
-
       </div>
 
       <div className="card" style={{ padding: '3rem', marginTop: '3rem' }}>

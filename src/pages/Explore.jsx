@@ -26,27 +26,27 @@ const schemeOccupations = {
   'pm-kisan':         ['farmer'],
   'mudra-yojana':     ['business', 'unemployed'],
   'pm-scholarship':   ['student'],
-  'skill-india':      ['unemployed', 'student', 'vendor'],
-  'digital-india-bpo':['unemployed', 'student'],
+  'skill-india':      ['student', 'unemployed'],
+  'digital-india-bpo':['student', 'unemployed'],
   'stand-up-india':   ['business', 'unemployed'],
-  'pm-jay':           ['farmer', 'vendor', 'unemployed'],
+  'pm-jay':           ['farmer', 'vendor', 'unemployed', 'employee'],
   'nmms':             ['student'],
   'pm-svanidhi':      ['vendor', 'unemployed'],
-  'ssy':              [],
+  'ssy':              ['employee', 'business', 'farmer'],
 };
 
 // Short eligibility summary per scheme
 const schemeEligSummary = {
-  'pm-kisan':         'Farmers with land ownership',
-  'mudra-yojana':     'Micro-entrepreneurs, 18–65 yrs',
-  'pm-scholarship':   'Higher education students, ≤₹5L income',
-  'skill-india':      'Youth seeking skill certification, 18+',
-  'digital-india-bpo':'College graduates, 18–35 yrs, unemployed',
-  'stand-up-india':   'Women / SC/ST entrepreneurs',
-  'pm-jay':           'BPL families, ≤₹2.5L income',
-  'nmms':             'School students class 9–12, ≤₹3.5L income',
-  'pm-svanidhi':      'Street vendors, ≤₹3L income',
-  'ssy':              'Parents of girl children aged ≤10',
+  'pm-kisan':         'Farmer, 18+, Landholding farmer families',
+  'mudra-yojana':     'Business/Self-Employed/Unemployed, 18-65',
+  'pm-scholarship':   'Student, 17+, <= ₹5 lakh/year',
+  'skill-india':      'Student/Unemployed, 18+',
+  'digital-india-bpo':'Student/Unemployed, 18-35',
+  'stand-up-india':   'Business/Self-Employed/Unemployed, 18+',
+  'pm-jay':           'Farmer/Vendor/Unemployed/Employee, <= ₹2.5 lakh/year',
+  'nmms':             'Student, 13-18 (Class 9-12), <= ₹3.5 lakh/year',
+  'pm-svanidhi':      'Street Vendor/Unemployed, 18+, <= ₹3 lakh/year',
+  'ssy':              'Employee/Business/Farmer, Girl child <10',
 };
 
 // Static scheme data (mirrors the Flask backend — no server required)

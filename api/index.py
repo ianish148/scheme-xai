@@ -89,6 +89,14 @@ schemes = [
     "benefits": "High interest rate and tax benefits.",
     "url": "https://www.india.gov.in/sukanya-samriddhi-yojna",
     "validStates": ["ALL"]
+  },
+  {
+    "id": "pm-internship",
+    "name": "Prime Minister Internship Scheme",
+    "description": "Provides 12-month internship opportunities in top 500 companies with a monthly stipend of ₹5,000 and a one-time grant of ₹6,000.",
+    "benefits": "₹5,000/month stipend + ₹6,000 grant + hands-on experience in top companies.",
+    "url": "https://pminternship.mca.gov.in",
+    "validStates": ["ALL"]
   }
 ]
 
@@ -115,7 +123,8 @@ def income_fail_msg(category, base):
     return f"Income exceeds standard limit ₹{limit:,}"
 
 def evaluate_scheme(user, scheme_context, ruleset):
-    score = 0
+    score = 80
+    max_score = 80
     passed_conditions = []
     failed_conditions = []
     hard_failures = []
@@ -140,33 +149,25 @@ def evaluate_scheme(user, scheme_context, ruleset):
             else:
                 hard_failures.append(fail_msg)
 
-        elif rtype == 'SOFT':
+        elif rtype in ['SOFT', 'BONUS']:
             max_w = rule.get('weight', 0)
+            max_score += max_w
             if rule['condition'](user):
                 score += max_w
+                num_soft_matches += 1
                 passed_conditions.append({
                     "category": rcat, "awarded": max_w, "max": max_w,
-                    "status": "✔", "message": pass_msg, "type": "SOFT"
+                    "status": "✔", "message": pass_msg, "type": rtype
                 })
-                num_soft_matches += 1
-            else:
+            elif rtype == 'SOFT':
                 failed_conditions.append({
                     "category": rcat, "awarded": 0, "max": max_w,
                     "status": "✖", "message": fail_msg, "type": "SOFT"
                 })
 
-        elif rtype == 'BONUS':
-            max_w = rule.get('weight', 0)
-            if rule['condition'](user):
-                score += max_w
-                passed_conditions.append({
-                    "category": rcat, "awarded": max_w, "max": max_w,
-                    "status": "✔", "message": pass_msg, "type": "BONUS"
-                })
-
-    score = min(score, 100)
+    normalized_score = round((score / max_score) * 100) if max_score > 0 else 0
     res = dict(scheme_context)
-    res['score'] = score
+    res['score'] = normalized_score
     res['passedConditions'] = passed_conditions
     res['failedConditions'] = failed_conditions
     res['hardFailures'] = hard_failures
@@ -195,11 +196,9 @@ def evaluate(user):
 
     s = next((x for x in schemes if x['id'] == 'pm-kisan'), None)
     if s:
-        lim = income_limit(cat, 250000)
         evaluated.append(evaluate_scheme(u, s, [
             { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] == 'farmer', 'passMessage': 'Occupation matches Farmer', 'failMessage': 'Occupation must be Farmer (mandatory condition failed)' },
-            { 'type': 'SOFT', 'category': 'Income', 'weight': 40, 'condition': lambda u, lim=lim: u['income'] <= lim, 'passMessage': income_pass_msg(cat, 250000), 'failMessage': income_fail_msg(cat, 250000) },
-            { 'type': 'SOFT', 'category': 'Age', 'weight': 30, 'condition': lambda u: u['age'] >= 18, 'passMessage': 'Age verified for land ownership (≥ 18)', 'failMessage': 'Age under 18 — land ownership questionable' },
+            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: u['age'] >= 18, 'passMessage': 'Age ≥ 18 for land ownership', 'failMessage': 'Age under 18 — land ownership questionable' },
             { 'type': 'SOFT', 'category': 'Base Metric', 'weight': 20, 'condition': lambda u: True, 'passMessage': 'General agricultural eligibility met', 'failMessage': '' },
             { 'type': 'BONUS', 'category': 'Interests', 'weight': 10, 'condition': lambda u: 'agriculture' in u['interests'], 'passMessage': 'Matches explicit interest in agriculture' }
         ]))
@@ -207,9 +206,8 @@ def evaluate(user):
     s = next((x for x in schemes if x['id'] == 'mudra-yojana'), None)
     if s:
         evaluated.append(evaluate_scheme(u, s, [
-            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['business', 'entrepreneur', 'unemployed'], 'passMessage': 'Occupation qualifies for micro-loans', 'failMessage': 'Must be seeking business / micro-enterprise support' },
-            { 'type': 'SOFT', 'category': 'Age', 'weight': 30, 'condition': lambda u: 18 <= u['age'] <= 65, 'passMessage': 'Age within active work demographic (18–65)', 'failMessage': 'Age outside optimal target group' },
-            { 'type': 'SOFT', 'category': 'Education', 'weight': 20, 'condition': lambda u: u['education'] != 'school', 'passMessage': 'Has basic higher education metrics', 'failMessage': 'Lacks higher educational background' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['business', 'unemployed'], 'passMessage': 'Occupation qualifies for micro-loans', 'failMessage': 'Must be Business / Self-Employed or Unemployed' },
+            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: 18 <= u['age'] <= 65, 'passMessage': 'Age within active work demographic (18–65)', 'failMessage': 'Age outside optimal target group' },
             { 'type': 'SOFT', 'category': 'Gender', 'weight': 20, 'condition': lambda u: u['gender'] == 'female', 'passMessage': 'Female applicant — entitled to superior interest rates', 'failMessage': 'Not eligible for female-specific rate benefits' },
             { 'type': 'SOFT', 'category': 'Demographic Category', 'weight': 20, 'condition': lambda u: u['category'] in ['sc', 'st', 'obc'], 'passMessage': 'SC/ST/OBC — priority processing', 'failMessage': 'General category — standard processing applies' },
             { 'type': 'BONUS', 'category': 'Interests', 'weight': 10, 'condition': lambda u: 'startup' in u['interests'], 'passMessage': 'Matches interest in entrepreneurship' }
@@ -217,12 +215,10 @@ def evaluate(user):
 
     s = next((x for x in schemes if x['id'] == 'pm-scholarship'), None)
     if s:
-        lim = income_limit(cat, 500000)
         evaluated.append(evaluate_scheme(u, s, [
-            { 'type': 'HARD', 'category': 'Education', 'condition': lambda u: u['education'] in ['college', 'engineering', 'graduate'], 'passMessage': 'Actively pursuing higher-education degree', 'failMessage': 'Must be pursuing a professional / technical degree' },
-            { 'type': 'SOFT', 'category': 'Occupation', 'weight': 40, 'condition': lambda u: u['occupation'] == 'student', 'passMessage': 'Occupation is Student', 'failMessage': 'Not primarily a student' },
-            { 'type': 'SOFT', 'category': 'Age', 'weight': 30, 'condition': lambda u: 17 <= u['age'] <= 25, 'passMessage': 'Age matches standard college demographic (17–25)', 'failMessage': 'Age outside standard cohort' },
-            { 'type': 'SOFT', 'category': 'Income', 'weight': 20, 'condition': lambda u, lim=lim: u['income'] < lim, 'passMessage': income_pass_msg(cat, 500000), 'failMessage': income_fail_msg(cat, 500000) },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] == 'student', 'passMessage': 'Occupation is Student', 'failMessage': 'Must be a student' },
+            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: u['age'] >= 17, 'passMessage': 'Age meets college entry requirement (17+)', 'failMessage': 'Age outside standard cohort' },
+            { 'type': 'HARD', 'category': 'Income', 'condition': lambda u: u['income'] <= 500000, 'passMessage': 'Family income <= ₹5 lakh/year', 'failMessage': 'Income exceeds limit' },
             { 'type': 'BONUS', 'category': 'Demographic Category', 'weight': 10, 'condition': lambda u: u['category'] in ['sc', 'st', 'obc'], 'passMessage': 'SC/ST/OBC — extra priority for scholarship allocation' }
         ]))
 
@@ -230,8 +226,7 @@ def evaluate(user):
     if s:
         evaluated.append(evaluate_scheme(u, s, [
             { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: u['age'] >= 18, 'passMessage': 'Age ≥ 18 for skill-labor enrollment', 'failMessage': 'Must be an adult (18+) for enrollment' },
-            { 'type': 'SOFT', 'category': 'Occupation', 'weight': 40, 'condition': lambda u: u['occupation'] in ['unemployed', 'student', 'vendor'], 'passMessage': 'Target demographic for upskilling', 'failMessage': 'Currently in stable non-target employment' },
-            { 'type': 'SOFT', 'category': 'Education', 'weight': 20, 'condition': lambda u: u['education'] in ['school', 'none'], 'passMessage': 'Lower formal education — prioritised cohort', 'failMessage': 'Already possesses advanced degree' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['unemployed', 'student'], 'passMessage': 'Target demographic for upskilling', 'failMessage': 'Must be Student or Unemployed' },
             { 'type': 'SOFT', 'category': 'Demographic Category', 'weight': 30, 'condition': lambda u: u['category'] in ['sc', 'st', 'obc'], 'passMessage': 'SC/ST/OBC — priority processing', 'failMessage': 'General category — unreserved' },
             { 'type': 'BONUS', 'category': 'Interests', 'weight': 10, 'condition': lambda u: 'technology' in u['interests'], 'passMessage': 'Technology upskilling interest recorded' }
         ]))
@@ -239,69 +234,72 @@ def evaluate(user):
     s = next((x for x in schemes if x['id'] == 'digital-india-bpo'), None)
     if s:
         evaluated.append(evaluate_scheme(u, s, [
-            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: 18 <= u['age'] <= 35, 'passMessage': 'Age between 18–35 (core target)', 'failMessage': 'Age must be 18–35 for youth IT employment' },
-            { 'type': 'HARD', 'category': 'Education', 'condition': lambda u: u['education'] in ['college', 'engineering', 'graduate'], 'passMessage': 'Possesses required formal degree', 'failMessage': 'IT sector requires minimum collegiate background' },
-            { 'type': 'SOFT', 'category': 'Occupation', 'weight': 50, 'condition': lambda u: u['occupation'] in ['unemployed', 'student'], 'passMessage': 'Actively seeking placement', 'failMessage': 'Not actively seeking entry-level jobs' },
-            { 'type': 'SOFT', 'category': 'Income', 'weight': 40, 'condition': lambda u: u['income'] < 800000, 'passMessage': 'Meets income equity band (< ₹8L)', 'failMessage': 'Exceeds standard income band' },
+            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: 18 <= u['age'] <= 35, 'passMessage': 'Age between 18–35', 'failMessage': 'Age must be 18–35' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['unemployed', 'student'], 'passMessage': 'Actively seeking placement', 'failMessage': 'Must be Student or Unemployed' },
             { 'type': 'BONUS', 'category': 'Interests', 'weight': 10, 'condition': lambda u: 'technology' in u['interests'], 'passMessage': 'Interest aligns with BPO/IT sector' }
         ]))
 
     s = next((x for x in schemes if x['id'] == 'stand-up-india'), None)
     if s:
         evaluated.append(evaluate_scheme(u, s, [
-            { 'type': 'HARD', 'category': 'Demography', 'condition': lambda u: u['gender'] == 'female' or u['category'] in ['sc', 'st'], 'passMessage': 'Meets diversity constraint (Women or SC/ST)', 'failMessage': 'Scheme restricted to Women or SC/ST entrepreneurs only' },
-            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: u['age'] >= 18, 'passMessage': 'Applicant is a legal adult', 'failMessage': 'Must be 18+ to assume debt' },
-            { 'type': 'SOFT', 'category': 'Occupation', 'weight': 50, 'condition': lambda u: u['occupation'] in ['business', 'entrepreneur', 'unemployed'], 'passMessage': 'Seeking to establish enterprise', 'failMessage': 'Not matching primary commercial intent' },
-            { 'type': 'SOFT', 'category': 'Income', 'weight': 40, 'condition': lambda u: u['income'] > 200000, 'passMessage': 'Baseline assets for co-financing present', 'failMessage': 'Extremely low income — risk' },
+            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: u['age'] >= 18, 'passMessage': 'Applicant is a legal adult', 'failMessage': 'Must be 18+' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['business', 'unemployed'], 'passMessage': 'Seeking to establish enterprise', 'failMessage': 'Must be Business / Self-Employed or Unemployed' },
             { 'type': 'BONUS', 'category': 'Interests', 'weight': 10, 'condition': lambda u: 'startup' in u['interests'], 'passMessage': 'Startup interest aligns with scheme focus' }
         ]))
 
     s = next((x for x in schemes if x['id'] == 'pm-jay'), None)
     if s:
-        lim = income_limit(cat, 250000)
         evaluated.append(evaluate_scheme(u, s, [
-            { 'type': 'HARD', 'category': 'Income', 'condition': lambda u, lim=lim: u['income'] <= lim, 'passMessage': income_pass_msg(cat, 250000), 'failMessage': income_fail_msg(cat, 250000) },
-            { 'type': 'SOFT', 'category': 'Occupation', 'weight': 30, 'condition': lambda u: u['occupation'] in ['farmer', 'vendor', 'unemployed'], 'passMessage': 'Vulnerable occupational bracket confirmed', 'failMessage': 'Occupation suggests financial stability' },
-            { 'type': 'SOFT', 'category': 'Education', 'weight': 20, 'condition': lambda u: u['education'] in ['school', 'none'], 'passMessage': 'Lower education level favors target', 'failMessage': 'Higher education usually implies private coverage' },
-            { 'type': 'SOFT', 'category': 'Demographic Category', 'weight': 20, 'condition': lambda u: u['category'] in ['sc', 'st', 'obc'], 'passMessage': 'SC/ST/OBC — priority enrolment', 'failMessage': 'General category' },
-            { 'type': 'SOFT', 'category': 'Base Metric', 'weight': 30, 'condition': lambda u: True, 'passMessage': 'Universal health-coverage scheme element satisfied', 'failMessage': '' }
+            { 'type': 'HARD', 'category': 'Income', 'condition': lambda u: u['income'] <= 250000, 'passMessage': 'Typically vulnerable families <= ₹2.5 lakh/year', 'failMessage': 'Income exceeds limit' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['farmer', 'vendor', 'unemployed', 'employee'], 'passMessage': 'Vulnerable occupational bracket confirmed', 'failMessage': 'Must be Farmer, Street Vendor, Unemployed, or Salaried' },
+            { 'type': 'SOFT', 'category': 'Demographic Category', 'weight': 20, 'condition': lambda u: u['category'] in ['sc', 'st', 'obc'], 'passMessage': 'SC/ST/OBC — priority enrolment', 'failMessage': 'General category' }
         ]))
 
     s = next((x for x in schemes if x['id'] == 'nmms'), None)
     if s:
-        lim = income_limit(cat, 350000)
         evaluated.append(evaluate_scheme(u, s, [
-            { 'type': 'HARD', 'category': 'Education', 'condition': lambda u: u['education'] == 'school', 'passMessage': 'Currently enrolled at school level', 'failMessage': 'Exclusively for Class 9–12 school students' },
-            { 'type': 'HARD', 'category': 'Income', 'condition': lambda u, lim=lim: u['income'] <= lim, 'passMessage': income_pass_msg(cat, 350000), 'failMessage': income_fail_msg(cat, 350000) },
-            { 'type': 'SOFT', 'category': 'Age', 'weight': 40, 'condition': lambda u: 13 <= u['age'] <= 17, 'passMessage': 'Age aligns with grades 9–12 (13–17)', 'failMessage': 'Age outside normal secondary school range' },
-            { 'type': 'SOFT', 'category': 'Occupation', 'weight': 40, 'condition': lambda u: u['occupation'] == 'student', 'passMessage': 'Confirmed full-time student', 'failMessage': 'Not a full-time student' },
+            { 'type': 'HARD', 'category': 'Income', 'condition': lambda u: u['income'] <= 350000, 'passMessage': 'Family income <= ₹3.5 lakh/year', 'failMessage': 'Income exceeds limit' },
+            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: 13 <= u['age'] <= 18, 'passMessage': 'Age aligns with grades 9–12 (13–18)', 'failMessage': 'Age outside normal secondary school range' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] == 'student', 'passMessage': 'Confirmed full-time student', 'failMessage': 'Not a full-time student' },
             { 'type': 'BONUS', 'category': 'Demographic Category', 'weight': 20, 'condition': lambda u: u['category'] in ['sc', 'st', 'obc'], 'passMessage': 'SC/ST/OBC — priority merit consideration in NMMS' }
         ]))
 
     s = next((x for x in schemes if x['id'] == 'pm-svanidhi'), None)
     if s:
-        lim = income_limit(cat, 300000)
         evaluated.append(evaluate_scheme(u, s, [
-            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['vendor', 'unemployed'], 'passMessage': 'Identifies as vendor/entrepreneur', 'failMessage': 'Scheme strictly targets vendors' },
-            { 'type': 'SOFT', 'category': 'Income', 'weight': 40, 'condition': lambda u, lim=lim: u['income'] <= lim, 'passMessage': income_pass_msg(cat, 300000), 'failMessage': income_fail_msg(cat, 300000) },
-            { 'type': 'SOFT', 'category': 'Age', 'weight': 30, 'condition': lambda u: u['age'] >= 18, 'passMessage': 'Legally able to manage micro-debt (18+)', 'failMessage': 'Underage for direct borrowing' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['vendor', 'unemployed'], 'passMessage': 'Identifies as vendor/entrepreneur', 'failMessage': 'Must be Street Vendor or Unemployed' },
+            { 'type': 'HARD', 'category': 'Income', 'condition': lambda u: u['income'] <= 300000, 'passMessage': 'Income <= ₹3 lakh/year', 'failMessage': 'Income exceeds limit' },
+            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: u['age'] >= 18, 'passMessage': 'Legally able to manage micro-debt (18+)', 'failMessage': 'Underage for direct borrowing' },
             { 'type': 'SOFT', 'category': 'Demographic Category', 'weight': 30, 'condition': lambda u: u['category'] in ['sc', 'st', 'obc'], 'passMessage': 'SC/ST/OBC — relaxed collateral norms', 'failMessage': 'General category — standard collateral norms' }
         ]))
 
     s = next((x for x in schemes if x['id'] == 'ssy'), None)
     if s:
         evaluated.append(evaluate_scheme(u, s, [
-            { 'type': 'HARD', 'category': 'Gender', 'condition': lambda u: u['gender'] == 'female', 'passMessage': 'Applicant is female (or parent of girl child)', 'failMessage': 'SSY is exclusively for girl children' },
-            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: u['age'] <= 10, 'passMessage': 'Girl child is ≤ 10 years old — account can be opened', 'failMessage': 'Account cannot be opened for age > 10' },
-            { 'type': 'SOFT', 'category': 'Base Metric', 'weight': 80, 'condition': lambda u: True, 'passMessage': 'All universal criteria satisfied', 'failMessage': '' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] in ['employee', 'business', 'farmer'], 'passMessage': 'Target occupation confirmed', 'failMessage': 'Must be Salaried Employee, Business, or Farmer' },
+            { 'type': 'HARD', 'category': 'Eligibility', 'condition': lambda u: (u['gender'] == 'female' and u['age'] <= 10) or (u.get('hasGirlChild') == 'yes' and int(u.get('girlChildAge', 0)) <= 10), 'passMessage': 'Eligible for SSY based on child age', 'failMessage': 'Requires a girl child aged 10 or younger' },
             { 'type': 'BONUS', 'category': 'Demographic Category', 'weight': 20, 'condition': lambda u: u['category'] in ['sc', 'st', 'obc'], 'passMessage': 'SC/ST/OBC — tax-exempt savings priority' }
+        ]))
+
+    s = next((x for x in schemes if x['id'] == 'pm-internship'), None)
+    if s:
+        evaluated.append(evaluate_scheme(u, s, [
+            { 'type': 'HARD', 'category': 'Education', 'condition': lambda u: u['education'] not in ['school', 'none'], 'passMessage': 'Enrolled in Higher Education', 'failMessage': 'Only higher education students (College/Engineering/Medical/Graduate) are eligible' },
+            { 'type': 'HARD', 'category': 'Occupation', 'condition': lambda u: u['occupation'] == 'student', 'passMessage': 'Must be a student to qualify for the student internship tracks', 'failMessage': 'Only open to current students' },
+            { 'type': 'HARD', 'category': 'Interest', 'condition': lambda u: u.get('needsInternship') == 'yes', 'passMessage': 'Actively seeking internship opportunities', 'failMessage': 'Did not opt-in for internships' },
+            { 'type': 'HARD', 'category': 'Age', 'condition': lambda u: 21 <= u['age'] <= 24, 'passMessage': 'Age 21-24', 'failMessage': 'Must be 21-24 years old' },
+            { 'type': 'HARD', 'category': 'Full Time Check', 'condition': lambda u: u.get('isFullTime') == 'no', 'passMessage': 'Not currently engaged in full-time employment/education', 'failMessage': 'Cannot be engaged in full-time employment or full-time education' },
+            { 'type': 'HARD', 'category': 'Premier Institute', 'condition': lambda u: u.get('isPremierGrad') == 'no', 'passMessage': 'Not from premier institutes (IIT/IIM/NLU/IISER)', 'failMessage': 'Graduates from premier institutes are ineligible' },
+            { 'type': 'HARD', 'category': 'Government Family', 'condition': lambda u: u.get('hasGovtFamily') == 'no', 'passMessage': 'No immediate family in government service', 'failMessage': 'Ineligible due to family member in government service' },
+            { 'type': 'HARD', 'category': 'Professional Degree', 'condition': lambda u: u.get('hasProfessionalDegree') == 'no', 'passMessage': 'Does not hold CA/MBA/MBBS qualifications', 'failMessage': 'Professionals (CA/MBA/MBBS) are ineligible' }
         ]))
 
     recommended = []
     disqualified = []
+
     for res in evaluated:
-        if len(res['hardFailures']) == 0 and res['score'] >= 50 and res['numSoftMatches'] >= 2:
-            res['eligibilityLabel'] = "Highly Eligible" if res['score'] >= 80 else "Eligible"
+        if len(res['hardFailures']) == 0:
+            res['eligibilityLabel'] = 'Highly Eligible' if res['score'] >= 80 else 'Eligible'
             res['confidence'] = res['score']
             recommended.append(res)
         else:
@@ -356,8 +354,8 @@ def recommend():
 
         if age < 5 or age > 100:
             return jsonify({"success": False, "error": "Invalid Age."}), 400
-        if income <= 0 or income > 50000000:
-            return jsonify({"success": False, "error": "Invalid Income."}), 400
+        if income <= 0 or income > 600000:
+            return jsonify({"success": False, "error": "Invalid Income. Max ₹6 Lakh."}), 400
 
         state = user_profile.get('state', '')
         if state not in valid_states:

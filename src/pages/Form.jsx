@@ -21,6 +21,14 @@ const STEPS = [
   { label: 'Additional Details', icon: Briefcase },
 ];
 
+const EDUCATION_SECTOR_MAP = {
+  college: ['it', 'retail', 'banking', 'hospitality'],
+  engineering: ['it', 'auto', 'manufacturing', 'telecom', 'infra', 'oil'],
+  medical: ['healthcare'],
+  graduate: ['banking', 'it', 'healthcare', 'telecom', 'infra'],
+  none: ['retail', 'hospitality', 'manufacturing', 'all'],
+};
+
 export default function FormPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -43,6 +51,10 @@ export default function FormPage() {
         ? [...formData.interests, value]
         : formData.interests.filter(i => i !== value);
       setFormData(prev => ({ ...prev, interests: newInterests }));
+    } else if (name === 'education') {
+      const available = EDUCATION_SECTOR_MAP[value] || [];
+      const newSector = available.length > 0 ? (available[0] === 'all' ? 'other' : available[0]) : '';
+      setFormData(prev => ({ ...prev, education: value, internshipSector: newSector }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -57,15 +69,16 @@ export default function FormPage() {
     }
     if (step === 3) {
       const inc = parseInt(formData.income, 10);
-      if (!formData.income || isNaN(inc) || inc < 0 || inc > 50000000) {
-        setErrorMsg('Income must be a valid amount (max ₹5 Crore).'); return false;
+      if (!formData.income || isNaN(inc) || inc <= 0 || inc > 600000) {
+        setErrorMsg('Income must be a valid amount (max ₹6 Lakh).'); return false;
       }
     }
     return true;
   };
 
   const isHigherEdStudent = formData.occupation === 'student' && !['school', 'none'].includes(formData.education);
-  const shouldSkipStep4 = !isHigherEdStudent;
+  const wantsInternship = formData.needsInternship === 'yes';
+  const shouldSkipStep4 = !(isHigherEdStudent && wantsInternship);
   const totalSteps = shouldSkipStep4 ? 3 : 4;
 
   const nextStep = () => { 
@@ -195,19 +208,28 @@ export default function FormPage() {
               </div>
             </div>
 
-            {/* Dynamic Internship Sector for Higher Ed Students */}
+            {/* Internship Questions for Higher Ed Students */}
             {isHigherEdStudent && (
-              <div className="grid md:grid-cols-2" style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--primary-faint)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+              <div className="grid md:grid-cols-2" style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--primary-faint)', borderRadius: '10px', border: '1px solid var(--border-color)', gap: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Which internship sector do you prefer?</label>
-                  <select name="internshipSector" value={formData.internshipSector} onChange={handleChange} className="form-control">
-                    {SECTORS.map(s => (
-                      <option key={s.id} value={s.id === 'all' ? 'other' : s.id}>
-                        {s.label === 'All Sectors' ? 'Other / Any' : s.label}
-                      </option>
-                    ))}
+                  <label className="form-label">Are you looking for an internship?</label>
+                  <select name="needsInternship" value={formData.needsInternship} onChange={handleChange} className="form-control">
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
                   </select>
                 </div>
+                {wantsInternship && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Preferred sector?</label>
+                    <select name="internshipSector" value={formData.internshipSector} onChange={handleChange} className="form-control">
+                      {SECTORS.filter(s => (EDUCATION_SECTOR_MAP[formData.education] || []).includes(s.id)).map(s => (
+                        <option key={s.id} value={s.id === 'all' ? 'other' : s.id}>
+                          {s.label === 'All Sectors' ? 'Other / Any' : s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 
@@ -245,7 +267,7 @@ export default function FormPage() {
             <div className="grid md:grid-cols-2">
               <div className="form-group">
                 <label className="form-label">Full Name <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>(optional)</span></label>
-                <input type="text" name="name" value={formData.name} onChange={handleChange} className="form-control" placeholder="e.g. Anish Sharma" />
+                <input type="text" name="name" value={formData.name} onChange={handleChange} className="form-control" placeholder="e.g. Havyas" />
               </div>
               <div className="form-group">
                 <label className="form-label">Age <span style={{ color: '#EF4444' }}>*</span></label>
